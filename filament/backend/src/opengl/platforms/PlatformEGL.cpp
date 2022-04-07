@@ -22,6 +22,7 @@
 #include <EGL/eglext.h>
 
 #include <utils/compiler.h>
+#include <utils/FixedCapacityVector.h>
 #include <utils/Log.h>
 
 using namespace utils;
@@ -110,38 +111,52 @@ Driver* PlatformEGL::createDriver(void* sharedContext, const Platform::DriverCon
     eglCreateImageKHR = (PFNEGLCREATEIMAGEKHRPROC) eglGetProcAddress("eglCreateImageKHR");
     eglDestroyImageKHR = (PFNEGLDESTROYIMAGEKHRPROC) eglGetProcAddress("eglDestroyImageKHR");
 
+    // Find config that support ES2 or ES3.
     EGLint configsCount;
     EGLint configAttribs[] = {
-            EGL_RENDERABLE_TYPE, EGL_OPENGL_ES3_BIT_KHR,        //  0
-            EGL_RED_SIZE,    8,                                 //  2
-            EGL_GREEN_SIZE,  8,                                 //  4
-            EGL_BLUE_SIZE,   8,                                 //  6
-            EGL_ALPHA_SIZE,  8,                                 //  8
-            EGL_DEPTH_SIZE, 24,                                 // 10
-            EGL_RECORDABLE_ANDROID, 1,                          // 12
-            EGL_NONE                                            // 14
+            EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT | EGL_OPENGL_ES3_BIT_KHR,   //  0
+            EGL_RED_SIZE,    8,                                                 //  2
+            EGL_GREEN_SIZE,  8,                                                 //  4
+            EGL_BLUE_SIZE,   8,                                                 //  6
+            EGL_ALPHA_SIZE,  8,                                                 //  8
+            EGL_DEPTH_SIZE, 24,                                                 // 10
+            EGL_RECORDABLE_ANDROID, 1,                                          // 12
+            EGL_NONE                                                            // 14
     };
 
-    EGLint contextAttribs[] = {
-            EGL_CONTEXT_CLIENT_VERSION, 3,
-            EGL_NONE, EGL_NONE, // reserved for EGL_CONTEXT_OPENGL_NO_ERROR_KHR below
-            EGL_NONE
-    };
-
-    EGLint pbufferAttribs[] = {
+    EGLint const pbufferAttribs[] = {
             EGL_WIDTH,  1,
             EGL_HEIGHT, 1,
             EGL_NONE
     };
 
+    // Request a ES2 context, devices that support ES3 will return an ES3 context.
+    auto contextAttribs = FixedCapacityVector<EGLint>::with_capacity(16);
+    contextAttribs.push_back(EGL_CONTEXT_CLIENT_VERSION);
+    contextAttribs.push_back(2);
+
+    // For testing, enforce the ES version we're asking for.
+    if (false && extensions.has("EGL_ANGLE_create_context_backwards_compatible")) {
+        // when set to EGL_FALSE, we'll get a context precisely with the version requested.
+        // useful for testing.
+        #ifndef EGL_CONTEXT_OPENGL_BACKWARDS_COMPATIBLE_ANGLE
+        #   define EGL_CONTEXT_OPENGL_BACKWARDS_COMPATIBLE_ANGLE 0x3483
+        #endif
+        contextAttribs.push_back(EGL_CONTEXT_OPENGL_BACKWARDS_COMPATIBLE_ANGLE);
+        contextAttribs.push_back(EGL_FALSE);
+    }
+
 #ifdef NDEBUG
     // When we don't have a shared context, and we're in release mode, we always activate the
     // EGL_KHR_create_context_no_error extension.
     if (!sharedContext && extensions.has("EGL_KHR_create_context_no_error")) {
-        contextAttribs[2] = EGL_CONTEXT_OPENGL_NO_ERROR_KHR;
-        contextAttribs[3] = EGL_TRUE;
+        contextAttribs.push_back(EGL_CONTEXT_OPENGL_NO_ERROR_KHR);
+        contextAttribs.push_back(EGL_TRUE);
     }
 #endif
+
+    // context attributes sentinel
+    contextAttribs.push_back(EGL_NONE);
 
     // config use for creating the context
     EGLConfig eglConfig = EGL_NO_CONFIG_KHR;
@@ -180,14 +195,18 @@ Driver* PlatformEGL::createDriver(void* sharedContext, const Platform::DriverCon
         goto error;
     }
 
-    mEGLContext = eglCreateContext(mEGLDisplay, eglConfig, (EGLContext)sharedContext, contextAttribs);
+    mEGLContext = eglCreateContext(mEGLDisplay, eglConfig,
+            (EGLContext)sharedContext, contextAttribs.data());
     if (UTILS_UNLIKELY(mEGLContext == EGL_NO_CONTEXT && sharedContext &&
         extensions.has("EGL_KHR_create_context_no_error"))) {
         // context creation could fail because of EGL_CONTEXT_OPENGL_NO_ERROR_KHR
         // not matching the sharedContext. Try with it.
-        contextAttribs[2] = EGL_CONTEXT_OPENGL_NO_ERROR_KHR;
-        contextAttribs[3] = EGL_TRUE;
-        mEGLContext = eglCreateContext(mEGLDisplay, eglConfig, (EGLContext)sharedContext, contextAttribs);
+        contextAttribs.pop_back();
+        contextAttribs.push_back(EGL_CONTEXT_OPENGL_NO_ERROR_KHR);
+        contextAttribs.push_back(EGL_TRUE);
+        contextAttribs.push_back(EGL_NONE);
+        mEGLContext = eglCreateContext(mEGLDisplay, eglConfig,
+                (EGLContext)sharedContext, contextAttribs.data());
     }
     if (UTILS_UNLIKELY(mEGLContext == EGL_NO_CONTEXT)) {
         // eglCreateContext failed
@@ -454,13 +473,11 @@ bool PlatformEGL::setExternalImage(void* externalImage,
 }
 
 void PlatformEGL::initializeGlExtensions() noexcept {
+    // We're guaranteed to be on an ES platform, since we're using EGL
     GLUtils::unordered_string_set glExtensions;
-    GLint n;
-    glGetIntegerv(GL_NUM_EXTENSIONS, &n);
-    for (GLint i = 0; i < n; ++i) {
-        const char * const extension = (const char*) glGetStringi(GL_EXTENSIONS, (GLuint)i);
-        glExtensions.insert(extension);
-    }
+    const char* const extensions = (const char*)glGetString(GL_EXTENSIONS);
+    glExtensions = GLUtils::split(extensions);
+
     ext.gl.OES_EGL_image_external_essl3 = glExtensions.has("GL_OES_EGL_image_external_essl3");
 }
 
