@@ -21,6 +21,8 @@
 
 #include <private/filament/EngineEnums.h>
 
+#include <backend/Program.h>
+
 #include <utils/FixedCapacityVector.h>
 
 namespace filament {
@@ -72,15 +74,16 @@ private:
 // ------------------------------------------------------------------------------------------------
 
 class MaterialUniformBlockBindingsChunk final : public Chunk {
+    using Container = utils::FixedCapacityVector<
+            std::pair<std::string_view, filament::UniformBindingPoints>>;
 public:
-    explicit MaterialUniformBlockBindingsChunk(
-            utils::FixedCapacityVector<std::pair<std::string_view, filament::UniformBindingPoints>> list);
+    explicit MaterialUniformBlockBindingsChunk(Container list);
     ~MaterialUniformBlockBindingsChunk() final = default;
 
 private:
     void flatten(Flattener&) final;
 
-    utils::FixedCapacityVector<std::pair<std::string_view, filament::UniformBindingPoints>> mBindingList;
+    Container mBindingList;
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -94,6 +97,21 @@ private:
     void flatten(Flattener &) final;
 
     filament::SamplerBindingMap const& mSamplerBindings;
+};
+
+// ------------------------------------------------------------------------------------------------
+
+class MaterialBindingUniformInfoChunk final : public Chunk {
+    using Container = FixedCapacityVector<
+            std::pair<filament::UniformBindingPoints, filament::backend::Program::UniformInfo>>;
+public:
+    explicit MaterialBindingUniformInfoChunk(Container list) noexcept;
+    ~MaterialBindingUniformInfoChunk() final = default;
+
+private:
+    void flatten(Flattener &) final;
+
+    Container mBindingUniformInfo;
 };
 
 } // namespace filamat

@@ -285,25 +285,32 @@ std::string ShaderGenerator::createVertexProgram(ShaderModel shaderModel,
     // uniforms
     cg.generateUniforms(vs, ShaderStage::VERTEX,
             UniformBindingPoints::PER_VIEW, UibGenerator::getPerViewUib());
+
     cg.generateUniforms(vs, ShaderStage::VERTEX,
             UniformBindingPoints::PER_RENDERABLE, UibGenerator::getPerRenderableUib());
-    if (litVariants && filament::Variant::isShadowReceiverVariant(variant)) {
-        cg.generateUniforms(vs, ShaderStage::FRAGMENT,
-                UniformBindingPoints::SHADOW, UibGenerator::getShadowUib());
+
+    if (material.featureLevel >= backend::FeatureLevel::FEATURE_LEVEL_1) {
+        if (litVariants && filament::Variant::isShadowReceiverVariant(variant)) {
+            cg.generateUniforms(vs, ShaderStage::FRAGMENT,
+                    UniformBindingPoints::SHADOW, UibGenerator::getShadowUib());
+        }
+        if (variant.hasSkinningOrMorphing()) {
+            cg.generateUniforms(vs, ShaderStage::VERTEX,
+                    UniformBindingPoints::PER_RENDERABLE_BONES,
+                    UibGenerator::getPerRenderableBonesUib());
+            cg.generateUniforms(vs, ShaderStage::VERTEX,
+                    UniformBindingPoints::PER_RENDERABLE_MORPHING,
+                    UibGenerator::getPerRenderableMorphingUib());
+            cg.generateSamplers(vs, SamplerBindingPoints::PER_RENDERABLE_MORPHING,
+                    material.samplerBindings
+                            .getBlockOffset(SamplerBindingPoints::PER_RENDERABLE_MORPHING),
+                    SibGenerator::getPerRenderPrimitiveMorphingSib(variant));
+        }
     }
-    if (variant.hasSkinningOrMorphing()) {
-        cg.generateUniforms(vs, ShaderStage::VERTEX,
-                UniformBindingPoints::PER_RENDERABLE_BONES,
-                UibGenerator::getPerRenderableBonesUib());
-        cg.generateUniforms(vs, ShaderStage::VERTEX,
-                UniformBindingPoints::PER_RENDERABLE_MORPHING,
-                UibGenerator::getPerRenderableMorphingUib());
-        cg.generateSamplers(vs, SamplerBindingPoints::PER_RENDERABLE_MORPHING,
-                material.samplerBindings.getBlockOffset(SamplerBindingPoints::PER_RENDERABLE_MORPHING),
-                SibGenerator::getPerRenderPrimitiveMorphingSib(variant));
-    }
+
     cg.generateUniforms(vs, ShaderStage::VERTEX,
             UniformBindingPoints::PER_MATERIAL_INSTANCE, material.uib);
+
     CodeGenerator::generateSeparator(vs);
     // TODO: should we generate per-view SIB in the vertex shader?
     cg.generateSamplers(vs, SamplerBindingPoints::PER_MATERIAL_INSTANCE,
@@ -485,18 +492,25 @@ std::string ShaderGenerator::createFragmentProgram(ShaderModel shaderModel,
     // uniforms and samplers
     cg.generateUniforms(fs, ShaderStage::FRAGMENT,
             UniformBindingPoints::PER_VIEW, UibGenerator::getPerViewUib());
+
     cg.generateUniforms(fs, ShaderStage::FRAGMENT,
             UniformBindingPoints::PER_RENDERABLE, UibGenerator::getPerRenderableUib());
-    cg.generateUniforms(fs, ShaderStage::FRAGMENT,
-            UniformBindingPoints::LIGHTS, UibGenerator::getLightsUib());
-    if (litVariants && filament::Variant::isShadowReceiverVariant(variant)) {
+
+    if (material.featureLevel >= backend::FeatureLevel::FEATURE_LEVEL_1) {
+
         cg.generateUniforms(fs, ShaderStage::FRAGMENT,
-                UniformBindingPoints::SHADOW, UibGenerator::getShadowUib());
+                UniformBindingPoints::LIGHTS, UibGenerator::getLightsUib());
+        if (litVariants && filament::Variant::isShadowReceiverVariant(variant)) {
+            cg.generateUniforms(fs, ShaderStage::FRAGMENT,
+                    UniformBindingPoints::SHADOW, UibGenerator::getShadowUib());
+        }
+        cg.generateUniforms(fs, ShaderStage::FRAGMENT,
+                UniformBindingPoints::FROXEL_RECORDS, UibGenerator::getFroxelRecordUib());
     }
-    cg.generateUniforms(fs, ShaderStage::FRAGMENT,
-            UniformBindingPoints::FROXEL_RECORDS, UibGenerator::getFroxelRecordUib());
+
     cg.generateUniforms(fs, ShaderStage::FRAGMENT,
             UniformBindingPoints::PER_MATERIAL_INSTANCE, material.uib);
+
     CodeGenerator::generateSeparator(fs);
     cg.generateSamplers(fs, SamplerBindingPoints::PER_VIEW,
             material.samplerBindings.getBlockOffset(SamplerBindingPoints::PER_VIEW),

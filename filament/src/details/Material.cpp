@@ -137,17 +137,27 @@ FMaterial::FMaterial(FEngine& engine, const Material::Builder& builder)
     UTILS_UNUSED_IN_RELEASE bool const nameOk = parser->getName(&mName);
     assert_invariant(nameOk);
 
-    uint8_t featureLevel = 1;
-    parser->getFeatureLevel(&featureLevel);
-    assert_invariant(featureLevel <= 3);
-    mFeatureLevel = [featureLevel]() -> FeatureLevel {
-        switch (featureLevel) {
-            default:
-            case 1: return FeatureLevel::FEATURE_LEVEL_1;
-            case 2: return FeatureLevel::FEATURE_LEVEL_2;
-            case 3: return FeatureLevel::FEATURE_LEVEL_3;
+    mFeatureLevel = [parser]() -> FeatureLevel {
+        // code written this way so the IDE will complain when/if we add a FeatureLevel
+        uint8_t level = 1;
+        parser->getFeatureLevel(&level);
+        assert_invariant(level <= 3);
+        FeatureLevel featureLevel = FeatureLevel::FEATURE_LEVEL_1;
+        switch (FeatureLevel(level)) {
+            case FeatureLevel::FEATURE_LEVEL_0:
+            case FeatureLevel::FEATURE_LEVEL_1:
+            case FeatureLevel::FEATURE_LEVEL_2:
+            case FeatureLevel::FEATURE_LEVEL_3:
+                featureLevel = FeatureLevel(level);
+                break;
         }
+        return featureLevel;
     }();
+
+    // TODO: this should probably be checked in build()
+    // if the engine is at feature level 0, so must the material be.
+    assert_invariant((engine.getActiveFeatureLevel() != FeatureLevel::FEATURE_LEVEL_0) ||
+                     (mFeatureLevel == FeatureLevel::FEATURE_LEVEL_0));
 
     UTILS_UNUSED_IN_RELEASE bool success;
 
@@ -157,9 +167,23 @@ FMaterial::FMaterial(FEngine& engine, const Material::Builder& builder)
     success = parser->getUIB(&mUniformInterfaceBlock);
     assert_invariant(success);
 
-    // read the uniform binding list
-    success = parser->getUniformBlockBindings(&mUniformBlockBindings);
-    assert_invariant(success || mFeatureLevel >= FeatureLevel::FEATURE_LEVEL_2);
+    // TODO: currently, the feature level used is determined by the material because we
+    //       don't have "feature level" variants. In the future, we could instead pick
+    //       the code path based on the engine's feature level.
+
+    if (mFeatureLevel == FeatureLevel::FEATURE_LEVEL_0) {
+        // this chunk is only needed for materials at feature level 0
+        // TODO: remove this assert when we support feature level variants
+        assert_invariant(engine.getActiveFeatureLevel() == FeatureLevel::FEATURE_LEVEL_0);
+        success = parser->getBindingUniformInfo(&mBindingUniformInfo);
+        assert_invariant(success);
+    }
+
+    if (mFeatureLevel == FeatureLevel::FEATURE_LEVEL_1) {
+        // this chunk is not needed for materials at feature level 2 and above
+        success = parser->getUniformBlockBindings(&mUniformBlockBindings);
+        assert_invariant(success);
+    }
 
     success = parser->getSamplerBlockBindings(
             &mSamplerGroupBindingInfoList, &mSamplerBindingToNameMap);
@@ -406,14 +430,15 @@ Program FMaterial::getProgramWithVariants(
         Variant variant,
         Variant vertexVariant,
         Variant fragmentVariant) const noexcept {
-    const ShaderModel sm = mEngine.getShaderModel();
-    const bool isNoop = mEngine.getBackend() == Backend::NOOP;
-
+    FEngine const& engine = mEngine;
+    const ShaderModel sm = engine.getShaderModel();
+    const bool isNoop = engine.getBackend() == Backend::NOOP;
+    const FeatureLevel engineFeatureLevel = engine.getActiveFeatureLevel();
     /*
      * Vertex shader
      */
 
-    ShaderContent& vsBuilder = mEngine.getVertexShaderContent();
+    ShaderContent& vsBuilder = engine.getVertexShaderContent();
 
     UTILS_UNUSED_IN_RELEASE bool const vsOK = mMaterialParser->getShader(vsBuilder, sm,
             vertexVariant, ShaderStage::VERTEX);
@@ -427,10 +452,16 @@ Program FMaterial::getProgramWithVariants(
      * Fragment shader
      */
 
-    ShaderContent& fsBuilder = mEngine.getFragmentShaderContent();
+    ShaderContent& fsBuilder = engine.getFragmentShaderContent();
 
     UTILS_UNUSED_IN_RELEASE bool const fsOK = mMaterialParser->getShader(fsBuilder, sm,
             fragmentVariant, ShaderStage::FRAGMENT);
+
+    ASSERT_POSTCONDITION(
+            (engineFeatureLevel != FeatureLevel::FEATURE_LEVEL_0) ||
+            (mFeatureLevel == FeatureLevel::FEATURE_LEVEL_0),
+            "Engine is running a FEATURE_LEVEL_0 but material '%s' is not.",
+            mName.c_str());
 
     ASSERT_POSTCONDITION(isNoop || (fsOK && !fsBuilder.empty()),
             "The material '%s' has not been compiled to include the required "
@@ -462,9 +493,20 @@ Program FMaterial::getProgramWithVariants(
         }
     }
 
+    if (engineFeatureLevel == FeatureLevel::FEATURE_LEVEL_0) {
+        assert_invariant(mBindingUniformInfo.size());
+        for (auto const& [index, uniforms] : mBindingUniformInfo) {
+            program.uniforms(uint32_t(index), uniforms);
+        }
+    }
+
+    // Feature level 0 doesn't support instancing
+    int const maxInstanceCount =
+            (engineFeatureLevel == FeatureLevel::FEATURE_LEVEL_0) ? 1 : CONFIG_MAX_INSTANCES;
+
     program.specializationConstants({
-            { 0, (int)mEngine.getSupportedFeatureLevel() },
-            { 1, (int)CONFIG_MAX_INSTANCES }
+            { 0, (int)engine.getSupportedFeatureLevel() },
+            { 1, (int)maxInstanceCount }
     });
 
     return program;

@@ -448,6 +448,10 @@ io::sstream& CodeGenerator::generateBufferInterfaceBlock(io::sstream& out, Shade
     out << "{\n";
 
     for (auto const& info : infos) {
+        if (mFeatureLevel < info.minFeatureLevel) {
+            continue;
+        }
+
         char const* const type = getUniformTypeName(info);
         char const* const precision = getUniformPrecisionQualifier(info.type, info.precision,
                 uniformPrecision, defaultPrecision);

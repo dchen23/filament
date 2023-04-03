@@ -27,6 +27,7 @@
 #include <private/filament/Variant.h>
 
 #include <backend/DriverEnums.h>
+#include <backend/Program.h>
 
 #include <utils/compiler.h>
 #include <utils/CString.h>
@@ -71,6 +72,11 @@ public:
     bool getUniformBlockBindings(utils::FixedCapacityVector<std::pair<utils::CString, uint8_t>>* value) const noexcept;
     bool getSamplerBlockBindings(SamplerGroupBindingInfoList* pSamplerGroupInfoList,
             SamplerBindingToNameMap* pSamplerBindingToNameMap) const noexcept;
+
+    using BindingUniformInfoContainer = utils::FixedCapacityVector<
+            std::pair<filament::UniformBindingPoints, backend::Program::UniformInfo>>;
+
+    bool getBindingUniformInfo(BindingUniformInfoContainer* container) const noexcept;
 
     bool getDepthWriteSet(bool* value) const noexcept;
     bool getDepthWrite(bool* value) const noexcept;
@@ -162,6 +168,11 @@ struct ChunkSubpassInterfaceBlock {
 struct ChunkUniformBlockBindings {
     static bool unflatten(filaflat::Unflattener& unflattener,
             utils::FixedCapacityVector<std::pair<utils::CString, uint8_t>>* uniformBlockBindings);
+};
+
+struct ChunkBindingUniformInfo {
+    static bool unflatten(filaflat::Unflattener& unflattener,
+            MaterialParser::BindingUniformInfoContainer* bindingUniformInfo);
 };
 
 struct ChunkSamplerBlockBindings {
