@@ -29,10 +29,16 @@ namespace filament::backend {
 
 bool OpenGLContext::queryOpenGLVersion(GLint* major, GLint* minor) noexcept {
 #ifdef BACKEND_OPENGL_VERSION_GLES
+#   ifdef BACKEND_OPENGL_LEVEL_GLES30
     char const* version = (char const*)glGetString(GL_VERSION);
     // This works on all versions of GLES
     int const n = version ? sscanf(version, "OpenGL ES %d.%d", major, minor) : 0;
     return n == 2;
+#   else
+    *major = 2;
+    *minor = 0;
+    return true;
+#   endif
 #else
     // OpenGL version
     glGetIntegerv(GL_MAJOR_VERSION, major);
@@ -135,7 +141,7 @@ OpenGLContext::OpenGLContext() noexcept {
         assert_invariant(ext.OES_depth_texture);
         assert_invariant(ext.OES_depth24);
         assert_invariant(ext.OES_rgb8_rgba8);
-        assert_invariant(ext.OES_standard_derivatives);
+        // assert_invariant(ext.OES_standard_derivatives); // not present when hacking es2 version
         assert_invariant(ext.OES_texture_npot);
         assert_invariant(ext.OES_vertex_array_object);
 

@@ -381,7 +381,7 @@ void FEngine::init() {
 
     mPostProcessManager.init();
     mLightManager.init(*this);
-    mDFG.init(*this);
+    //mDFG.init(*this);
 }
 
 FEngine::~FEngine() noexcept {

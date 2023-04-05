@@ -120,7 +120,7 @@ class MainActivity : Activity() {
         scene.skybox = Skybox.Builder().color(0.035f, 0.035f, 0.035f, 1.0f).build(engine)
 
         // NOTE: Try to disable post-processing (tone-mapping, etc.) to see the difference
-        // view.isPostProcessingEnabled = false
+        view.isPostProcessingEnabled = false
 
         // Tell the view which camera we want to use
         view.camera = camera

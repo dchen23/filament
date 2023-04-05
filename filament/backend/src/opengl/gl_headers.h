@@ -42,8 +42,8 @@
     #if defined(__EMSCRIPTEN__)
     #   include <GLES3/gl3.h>
     #else
-//    #   include <GLES2/gl2.h>
-    #   include <GLES3/gl31.h>
+    #   include <GLES2/gl2.h>
+//    #   include <GLES3/gl31.h>
     #endif
     #include <GLES2/gl2ext.h>
 
