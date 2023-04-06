@@ -364,6 +364,58 @@ io::sstream& CodeGenerator::generateUniforms(io::sstream& out, ShaderStage stage
     return generateBufferInterfaceBlock(out, stage, +binding, uib);
 }
 
+io::sstream& CodeGenerator::generateInterfaceFields(io::sstream& out, ShaderStage stage,
+        FixedCapacityVector<BufferInterfaceBlock::FieldInfo> const& infos) const {
+    Precision uniformPrecision = getDefaultUniformPrecision();
+    Precision defaultPrecision = getDefaultPrecision(stage);
+
+    for (auto const& info : infos) {
+        if (mFeatureLevel < info.minFeatureLevel) {
+            continue;
+        }
+
+        char const* const type = getUniformTypeName(info);
+        char const* const precision = getUniformPrecisionQualifier(info.type, info.precision,
+                uniformPrecision, defaultPrecision);
+        out << "    " << precision;
+        if (precision[0] != '\0') out << " ";
+        out << type << " " << info.name.c_str();
+        if (info.isArray) {
+            if (info.sizeName.empty()) {
+                if (info.size) {
+                    out << "[" << info.size << "]";
+                } else {
+                    out << "[]";
+                }
+            } else {
+                out << "[" << info.sizeName.c_str() << "]";
+            }
+        }
+        out << ";\n";
+    }
+    return out;
+}
+
+io::sstream& CodeGenerator::generateUboAsPainUniforms(io::sstream& out, ShaderStage stage,
+        const BufferInterfaceBlock& uib) const {
+
+    auto const& infos = uib.getFieldInfoList();
+
+    std::string blockName{ uib.getName() };
+    std::string instanceName{ uib.getName() };
+    blockName.front() = char(std::toupper((unsigned char)blockName.front()));
+    instanceName.front() = char(std::tolower((unsigned char)instanceName.front()));
+
+    out << "\nstruct " << blockName << " {\n";
+
+    generateInterfaceFields(out, stage, infos);
+
+    out << "};\n";
+    out << "uniform " << blockName << " " << instanceName << ";\n";
+
+    return out;
+}
+
 io::sstream& CodeGenerator::generateBufferInterfaceBlock(io::sstream& out, ShaderStage stage,
         uint32_t binding, const BufferInterfaceBlock& uib) const {
     auto const& infos = uib.getFieldInfoList();
@@ -371,13 +423,18 @@ io::sstream& CodeGenerator::generateBufferInterfaceBlock(io::sstream& out, Shade
         return out;
     }
 
+    if (mTargetLanguage == TargetLanguage::GLSL &&
+            mFeatureLevel == FeatureLevel::FEATURE_LEVEL_0) {
+        // we need to generate a structure instead
+        assert_invariant(mTargetApi == TargetApi::OPENGL);
+        assert_invariant(uib.getTarget() == BufferInterfaceBlock::Target::UNIFORM);
+        return generateUboAsPainUniforms(out, stage, uib);
+    }
+
     std::string blockName{ uib.getName() };
     std::string instanceName{ uib.getName() };
     blockName.front() = char(std::toupper((unsigned char)blockName.front()));
     instanceName.front() = char(std::tolower((unsigned char)instanceName.front()));
-
-    Precision uniformPrecision = getDefaultUniformPrecision();
-    Precision defaultPrecision = getDefaultPrecision(stage);
 
     auto metalBufferBindingOffset = 0;
     switch (uib.getTarget()) {
@@ -447,30 +504,8 @@ io::sstream& CodeGenerator::generateBufferInterfaceBlock(io::sstream& out, Shade
 
     out << "{\n";
 
-    for (auto const& info : infos) {
-        if (mFeatureLevel < info.minFeatureLevel) {
-            continue;
-        }
+    generateInterfaceFields(out, stage, infos);
 
-        char const* const type = getUniformTypeName(info);
-        char const* const precision = getUniformPrecisionQualifier(info.type, info.precision,
-                uniformPrecision, defaultPrecision);
-        out << "    " << precision;
-        if (precision[0] != '\0') out << " ";
-        out << type << " " << info.name.c_str();
-        if (info.isArray) {
-            if (info.sizeName.empty()) {
-                if (info.size) {
-                    out << "[" << info.size << "]";
-                } else {
-                    out << "[]";
-                }
-            } else {
-                out << "[" << info.sizeName.c_str() << "]";
-            }
-        }
-        out << ";\n";
-    }
     out << "} " << instanceName << ";\n";
 
     return out;

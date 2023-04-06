@@ -17,30 +17,30 @@
 #ifndef TNT_FILAMENT_CODEGENERATOR_H
 #define TNT_FILAMENT_CODEGENERATOR_H
 
-#include <exception>
-#include <iosfwd>
-#include <string>
-#include <variant>
 
 #include "MaterialInfo.h"
 
-#include <utils/compiler.h>
-#include <utils/Log.h>
-
 #include <filamat/MaterialBuilder.h>
+
 #include <filament/MaterialEnums.h>
 
 #include <private/filament/EngineEnums.h>
 #include <private/filament/SamplerInterfaceBlock.h>
 #include <private/filament/BufferInterfaceBlock.h>
 #include <private/filament/SubpassInfo.h>
+#include <private/filament/Variant.h>
 
 #include <backend/DriverEnums.h>
 
+#include <utils/compiler.h>
+#include <utils/FixedCapacityVector.h>
+#include <utils/Log.h>
 #include <utils/sstream.h>
 
-#include <private/filament/Variant.h>
-#include "private/filament/EngineEnums.h"
+#include <exception>
+#include <iosfwd>
+#include <string>
+#include <variant>
 
 namespace filamat {
 
@@ -171,6 +171,12 @@ public:
 private:
     filament::backend::Precision getDefaultPrecision(ShaderStage stage) const;
     filament::backend::Precision getDefaultUniformPrecision() const;
+
+    utils::io::sstream& generateInterfaceFields(utils::io::sstream& out, ShaderStage stage,
+            utils::FixedCapacityVector<filament::BufferInterfaceBlock::FieldInfo> const& infos) const;
+
+    utils::io::sstream& generateUboAsPainUniforms(utils::io::sstream& out, ShaderStage stage,
+            const filament::BufferInterfaceBlock& uib) const;
 
     static const char* getUniformPrecisionQualifier(filament::backend::UniformType type,
             filament::backend::Precision precision,
