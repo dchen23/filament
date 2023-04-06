@@ -329,10 +329,15 @@ void FEngine::init() {
     mDefaultColorGrading = downcast(ColorGrading::Builder().build(*this));
 
     // Always initialize the default material, most materials' depth shaders fallback on it.
-    mDefaultMaterial = downcast(
-            FMaterial::DefaultMaterialBuilder()
-                    .package(MATERIALS_DEFAULTMATERIAL_DATA, MATERIALS_DEFAULTMATERIAL_SIZE)
-                    .build(*const_cast<FEngine*>(this)));
+    FMaterial::DefaultMaterialBuilder defaultMaterialBuilder;
+    if (hasFeatureLevel(backend::FeatureLevel::FEATURE_LEVEL_1)) {
+        defaultMaterialBuilder.package(
+                MATERIALS_DEFAULTMATERIAL_DATA, MATERIALS_DEFAULTMATERIAL_SIZE);
+    } else {
+        defaultMaterialBuilder.package(
+                MATERIALS_DEFAULTMATERIAL0_DATA, MATERIALS_DEFAULTMATERIAL0_SIZE);
+    }
+    mDefaultMaterial = downcast(defaultMaterialBuilder.build(*const_cast<FEngine*>(this)));
 
     // Create a dummy morph target buffer.
     mDummyMorphTargetBuffer = createMorphTargetBuffer(FMorphTargetBuffer::EmptyMorphTargetBuilder());

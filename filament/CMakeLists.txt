@@ -214,6 +214,7 @@ set(MATERIAL_SRCS
         src/materials/colorGrading/customResolveAsSubpass.mat
         src/materials/debugShadowCascades.mat
         src/materials/defaultMaterial.mat
+        src/materials/defaultMaterial0.mat
         src/materials/dof/dof.mat
         src/materials/dof/dofCoc.mat
         src/materials/dof/dofDownsample.mat
@@ -231,6 +232,7 @@ set(MATERIAL_SRCS
         src/materials/ssao/bilateralBlurBentNormals.mat
         src/materials/ssao/mipmapDepth.mat
         src/materials/skybox.mat
+        src/materials/skybox0.mat
         src/materials/ssao/sao.mat
         src/materials/ssao/saoBentNormals.mat
         src/materials/separableGaussianBlur1.mat

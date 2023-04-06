@@ -117,9 +117,14 @@ FSkybox::FSkybox(FEngine& engine, const Builder& builder) noexcept
 }
 
 FMaterial const* FSkybox::createMaterial(FEngine& engine) {
-    FMaterial const* material = downcast(Material::Builder().package(
-            MATERIALS_SKYBOX_DATA, MATERIALS_SKYBOX_SIZE).build(engine));
-    return material;
+    Material::Builder builder;
+    if (engine.hasFeatureLevel(backend::FeatureLevel::FEATURE_LEVEL_1)) {
+        builder.package(MATERIALS_SKYBOX_DATA, MATERIALS_SKYBOX_SIZE);
+    } else {
+        builder.package(MATERIALS_SKYBOX0_DATA, MATERIALS_SKYBOX0_SIZE);
+    }
+    auto material = builder.build(engine);
+    return downcast(material);
 }
 
 void FSkybox::terminate(FEngine& engine) noexcept {
